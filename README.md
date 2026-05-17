@@ -367,7 +367,7 @@ For Round 2, LexGraph will:
 
 | Resource | Link |
 |---|---|
-| 📹 Demo video | [link] |
+| 📹 Demo video | https://youtu.be/SFHkNvSppw8 |
 | 📝 Blog post | https://dev.to/sujatha/lexgraph-4occ |
 | 🐯 TigerGraph GraphRAG repo | [github.com/tigergraph/graphrag](https://github.com/tigergraph/graphrag) |
 | 🏆 Hackathon page | [GraphRAG Inference Hackathon](https://unstop.com) |
