@@ -1,0 +1,35 @@
+{
+  "_comment": "LexGraph advanced path config — per TigerGraph mentor advice.",
+  "_comment2": "Dataset has case_id, judges, citations pre-structured so we build the graph ourselves.",
+
+  "entity_extraction_switch": false,
+  "community_detection_switch": false,
+
+  "chunking": {
+    "chunk_size": 512,
+    "chunk_overlap": 64,
+    "strategy": "sentence"
+  },
+
+  "retrieval": {
+    "num_hops": 3,
+    "top_k": 5,
+    "retriever_type": "hybrid",
+    "_comment": "hybrid = vector similarity + graph traversal combined"
+  },
+
+  "graph_schema": {
+    "vertex_types": ["Case", "Judge", "Article", "Statute"],
+    "edge_types": [
+      "cites",
+      "authored_by",
+      "references_article",
+      "challenges_statute"
+    ]
+  },
+
+  "llm": {
+    "model": "gemini-1.5-flash",
+    "_comment": "Set GEMINI_API_KEY in .env — much faster than Ollama for 2M token ingestion"
+  }
+}

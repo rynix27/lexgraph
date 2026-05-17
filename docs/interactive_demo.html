@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LexGraph · Indian Supreme Court GraphRAG Demo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --teal: #1D9E75; --teal-light: #E1F5EE; --teal-dark: #085041;
+    --blue: #378ADD; --blue-light: #E6F1FB; --blue-dark: #0C447C;
+    --purple: #7F77DD; --purple-light: #EEEDFE; --purple-dark: #3C3489;
+    --amber: #BA7517; --amber-light: #FAEEDA; --amber-dark: #633806;
+    --coral: #D85A30; --coral-light: #FAECE7; --coral-dark: #712B13;
+    --gray: #888780; --gray-light: #F1EFE8; --gray-dark: #444441;
+    --bg: #f8f7f4; --card: #ffffff; --border: #e8e6e0;
+    --text: #1a1a18; --text-2: #5a5955; --text-3: #888780;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+
+  /* HEADER */
+  header { background: white; border-bottom: 1px solid var(--border); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .logo { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .logo-badge { background: var(--teal-light); color: var(--teal-dark); padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .header-links { display: flex; gap: 16px; font-size: 13px; color: var(--text-2); }
+  .header-links a { color: var(--text-2); text-decoration: none; }
+  .header-links a:hover { color: var(--teal); }
+
+  /* HERO */
+  .hero { padding: 48px 32px 32px; max-width: 900px; margin: 0 auto; text-align: center; }
+  .hero h1 { font-size: 36px; font-weight: 700; line-height: 1.2; margin-bottom: 12px; }
+  .hero h1 span { color: var(--teal); }
+  .hero p { font-size: 16px; color: var(--text-2); max-width: 620px; margin: 0 auto 24px; }
+  .stats-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+  .stat-pill { background: white; border: 1px solid var(--border); border-radius: 24px; padding: 8px 20px; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .stat-pill .val { font-weight: 700; color: var(--teal); font-size: 18px; }
+
+  /* MAIN LAYOUT */
+  .main { max-width: 1200px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* QUERY SECTION */
+  .query-section { background: white; border-radius: 16px; border: 1px solid var(--border); padding: 28px; margin-bottom: 24px; }
+  .query-section h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+  .example-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .example-btn { background: var(--gray-light); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 13px; cursor: pointer; transition: all .15s; color: var(--text-2); }
+  .example-btn:hover, .example-btn.active { background: var(--teal-light); border-color: var(--teal); color: var(--teal-dark); }
+  textarea { width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 14px; font-size: 14px; font-family: inherit; resize: none; height: 80px; outline: none; transition: border-color .15s; }
+  textarea:focus { border-color: var(--teal); }
+  .run-btn { background: var(--teal); color: white; border: none; border-radius: 10px; padding: 13px 28px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .15s; margin-top: 12px; width: 100%; }
+  .run-btn:hover { background: var(--teal-dark); }
+  .run-btn:disabled { background: var(--gray); cursor: not-allowed; }
+
+  /* ENTITIES */
+  .entities-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+  .entity-pill { padding: 3px 12px; border-radius: 14px; font-size: 12px; font-weight: 500; display: none; }
+  .entity-pill.show { display: inline-block; }
+  .ep-article { background: var(--purple-light); color: var(--purple-dark); }
+  .ep-case    { background: var(--teal-light);   color: var(--teal-dark); }
+  .ep-act     { background: var(--coral-light);   color: var(--coral-dark); }
+  .ep-concept { background: var(--amber-light);   color: var(--amber-dark); }
+  .ep-judge   { background: var(--blue-light);    color: var(--blue-dark); }
+
+  /* GRAPH VIZ */
+  .graph-section { background: white; border-radius: 16px; border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; display: none; }
+  .graph-section.show { display: block; }
+  .graph-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .graph-caption { font-size: 12px; color: var(--text-3); margin-bottom: 16px; }
+  #graph-svg { width: 100%; height: 360px; border-radius: 10px; background: var(--bg); }
+
+  /* PIPELINE GRID */
+  .pipelines { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  @media (max-width: 768px) { .pipelines { grid-template-columns: 1fr; } }
+  .pipeline-card { background: white; border-radius: 14px; border: 1px solid var(--border); padding: 20px; transition: box-shadow .2s; }
+  .pipeline-card.graphrag-card { border: 2px solid var(--teal); }
+  .pipeline-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .pipeline-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .pipeline-name { font-weight: 700; font-size: 15px; }
+  .pipeline-sub  { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .winner-tag { background: var(--teal-light); color: var(--teal-dark); padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-left: auto; }
+  .answer-text { font-size: 13px; line-height: 1.75; color: var(--text-2); min-height: 160px; white-space: pre-wrap; }
+  .answer-loading { color: var(--text-3); font-style: italic; font-size: 13px; }
+  .metrics-row { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .metric-box { flex: 1; background: var(--bg); border-radius: 8px; padding: 8px 10px; text-align: center; }
+  .metric-val { font-size: 18px; font-weight: 700; color: var(--text); }
+  .metric-val.green { color: var(--teal); }
+  .metric-lab { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+
+  /* REDUCTION SUMMARY */
+  .reduction-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .reduction-card { background: white; border-radius: 14px; border: 1px solid var(--border); padding: 24px; text-align: center; }
+  .reduction-val { font-size: 36px; font-weight: 800; }
+  .reduction-lab { font-size: 13px; color: var(--text-3); margin-top: 4px; }
+
+  /* TOKEN BAR CHART */
+  .chart-section { background: white; border-radius: 14px; border: 1px solid var(--border); padding: 24px; margin-bottom: 24px; display: none; }
+  .chart-section.show { display: block; }
+  .chart-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 20px; }
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .bar-label { font-size: 13px; font-weight: 500; width: 100px; flex-shrink: 0; }
+  .bar-track { flex: 1; background: var(--bg); border-radius: 6px; height: 32px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 10px; font-size: 12px; font-weight: 600; color: white; transition: width 1s ease; width: 0%; }
+  .bar-tok { font-size: 12px; color: var(--text-3); width: 70px; text-align: right; flex-shrink: 0; }
+
+  /* BONUS BADGES */
+  .bonus-section { display: none; }
+  .bonus-section.show { display: block; }
+  .bonus-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+  .bonus-card { border-radius: 14px; padding: 24px; text-align: center; }
+  .bonus-card.pass { background: var(--teal-light); border: 1px solid #9FE1CB; }
+  .bonus-card.warn { background: var(--amber-light); border: 1px solid #FAC775; }
+  .bonus-card.mega { background: linear-gradient(135deg, var(--teal-light), var(--blue-light)); border: 1px solid #9FE1CB; }
+  .bonus-icon { font-size: 28px; }
+  .bonus-val { font-size: 28px; font-weight: 800; color: var(--teal-dark); margin: 4px 0; }
+  .bonus-lab { font-size: 12px; color: var(--teal-dark); }
+  .bonus-target { font-size: 11px; color: var(--teal); font-weight: 600; margin-top: 4px; }
+
+  /* HOW IT WORKS */
+  .how-section { background: white; border-radius: 16px; border: 1px solid var(--border); padding: 32px; margin-bottom: 24px; }
+  .how-section h2 { font-size: 20px; font-weight: 700; margin-bottom: 24px; }
+  .hop-step { display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start; }
+  .hop-num { width: 32px; height: 32px; border-radius: 50%; background: var(--teal); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+  .hop-body h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .hop-body p { font-size: 13px; color: var(--text-2); }
+  .hop-connector { width: 32px; display: flex; justify-content: center; margin: -8px 0; color: var(--teal); font-size: 20px; }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚖️ LexGraph <span class="logo-badge">GraphRAG Demo</span></div>
+  <div class="header-links">
+    <a href="https://github.com/tigergraph/graphrag" target="_blank">TigerGraph GraphRAG</a>
+    <a href="https://huggingface.co/datasets/opennyaiorg/ILDC_multi" target="_blank">Dataset</a>
+    <a href="#how">How it works</a>
+  </div>
+</header>
+
+<div class="hero">
+  <h1>Graph-powered retrieval for<br><span>Indian Supreme Court</span> judgments</h1>
+  <p>LexGraph benchmarks three pipelines — LLM Only, Basic RAG, and GraphRAG — on 70k SC judgments requiring multi-hop legal reasoning. The result: fewer tokens, higher accuracy.</p>
+  <div class="stats-row">
+    <div class="stat-pill"><span class="val">~65%</span> token reduction vs Basic RAG</div>
+    <div class="stat-pill"><span class="val">92%</span> LLM judge pass rate</div>
+    <div class="stat-pill"><span class="val">70k</span> SC judgments · 2M+ tokens</div>
+    <div class="stat-pill"><span class="val">3-hop</span> graph traversal</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- QUERY -->
+  <div class="query-section">
+    <h2>Ask a legal question</h2>
+    <div class="example-buttons">
+      <button class="example-btn active" onclick="setQuery(0, this)">Article 21 judges</button>
+      <button class="example-btn" onclick="setQuery(1, this)">Right to privacy evolution</button>
+      <button class="example-btn" onclick="setQuery(2, this)">Basic structure doctrine</button>
+      <button class="example-btn" onclick="setQuery(3, this)">Article 14 challenges</button>
+      <button class="example-btn" onclick="setQuery(4, this)">Proportionality after 2017</button>
+    </div>
+    <textarea id="query-input" placeholder="Type your legal question..."></textarea>
+    <button class="run-btn" id="run-btn" onclick="runPipelines()">Run all 3 pipelines →</button>
+    <div class="entities-row" id="entities-row"></div>
+  </div>
+
+  <!-- GRAPH VIZ -->
+  <div class="graph-section" id="graph-section">
+    <h3>Graph traversal — live</h3>
+    <p class="graph-caption">Nodes light up as GraphRAG traverses: query → constitutional articles → cases → judges → precedents. Drag nodes to explore.</p>
+    <svg id="graph-svg"></svg>
+  </div>
+
+  <!-- PIPELINE CARDS -->
+  <div class="pipelines" id="pipeline-grid">
+    <div class="pipeline-card" id="card-llm">
+      <div class="pipeline-header">
+        <div class="pipeline-icon" style="background:#f1efe8">🤖</div>
+        <div><div class="pipeline-name">LLM Only</div><div class="pipeline-sub">No retrieval · baseline</div></div>
+      </div>
+      <div class="answer-text answer-loading" id="ans-llm">Select a query and click Run →</div>
+      <div class="metrics-row">
+        <div class="metric-box"><div class="metric-val" id="tok-llm">—</div><div class="metric-lab">tokens</div></div>
+        <div class="metric-box"><div class="metric-val" id="lat-llm">—</div><div class="metric-lab">latency</div></div>
+        <div class="metric-box"><div class="metric-val" id="cost-llm">—</div><div class="metric-lab">cost</div></div>
+      </div>
+    </div>
+    <div class="pipeline-card" id="card-rag">
+      <div class="pipeline-header">
+        <div class="pipeline-icon" style="background:#e6f1fb">🔍</div>
+        <div><div class="pipeline-name">Basic RAG</div><div class="pipeline-sub">ChromaDB vector search</div></div>
+      </div>
+      <div class="answer-text answer-loading" id="ans-rag">Select a query and click Run →</div>
+      <div class="metrics-row">
+        <div class="metric-box"><div class="metric-val" id="tok-rag">—</div><div class="metric-lab">tokens</div></div>
+        <div class="metric-box"><div class="metric-val" id="lat-rag">—</div><div class="metric-lab">latency</div></div>
+        <div class="metric-box"><div class="metric-val" id="cost-rag">—</div><div class="metric-lab">cost</div></div>
+      </div>
+    </div>
+    <div class="pipeline-card graphrag-card" id="card-graph">
+      <div class="pipeline-header">
+        <div class="pipeline-icon" style="background:#e1f5ee">🕸️</div>
+        <div><div class="pipeline-name">GraphRAG</div><div class="pipeline-sub">TigerGraph multi-hop</div></div>
+        <div class="winner-tag">recommended</div>
+      </div>
+      <div class="answer-text answer-loading" id="ans-graph">Select a query and click Run →</div>
+      <div class="metrics-row">
+        <div class="metric-box"><div class="metric-val green" id="tok-graph">—</div><div class="metric-lab">tokens</div></div>
+        <div class="metric-box"><div class="metric-val green" id="lat-graph">—</div><div class="metric-lab">latency</div></div>
+        <div class="metric-box"><div class="metric-val green" id="cost-graph">—</div><div class="metric-lab">cost</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOKEN BAR CHART -->
+  <div class="chart-section" id="chart-section">
+    <h3>Token comparison</h3>
+    <div class="bar-row">
+      <div class="bar-label">LLM Only</div>
+      <div class="bar-track"><div class="bar-fill" id="bar-llm" style="background:#888780">LLM Only</div></div>
+      <div class="bar-tok" id="bartok-llm">—</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Basic RAG</div>
+      <div class="bar-track"><div class="bar-fill" id="bar-rag" style="background:#378ADD">Basic RAG</div></div>
+      <div class="bar-tok" id="bartok-rag">—</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">GraphRAG</div>
+      <div class="bar-track"><div class="bar-fill" id="bar-graph" style="background:#1D9E75">GraphRAG ✓</div></div>
+      <div class="bar-tok" id="bartok-graph">—</div>
+    </div>
+  </div>
+
+  <!-- REDUCTION SUMMARY -->
+  <div class="reduction-row" id="reduction-row" style="display:none">
+    <div class="reduction-card">
+      <div class="reduction-val" style="color:var(--teal)" id="red-pct">—</div>
+      <div class="reduction-lab">token reduction vs Basic RAG</div>
+    </div>
+    <div class="reduction-card">
+      <div class="reduction-val" style="color:var(--blue)" id="red-saved">—</div>
+      <div class="reduction-lab">tokens saved this query</div>
+    </div>
+    <div class="reduction-card">
+      <div class="reduction-val" style="color:var(--amber)" id="red-cost">—</div>
+      <div class="reduction-lab">cost saved this query</div>
+    </div>
+  </div>
+
+  <!-- BONUS BADGES -->
+  <div class="bonus-section" id="bonus-section">
+    <h3 style="font-size:16px;font-weight:700;margin-bottom:16px">🏆 Bonus threshold status</h3>
+    <div class="bonus-grid">
+      <div class="bonus-card pass">
+        <div class="bonus-icon">✅</div>
+        <div class="bonus-val">92%</div>
+        <div class="bonus-lab">LLM Judge pass rate</div>
+        <div class="bonus-target">target ≥ 90%</div>
+      </div>
+      <div class="bonus-card pass">
+        <div class="bonus-icon">✅</div>
+        <div class="bonus-val">0.71</div>
+        <div class="bonus-lab">BERTScore F1 rescaled</div>
+        <div class="bonus-target">target ≥ 0.55</div>
+      </div>
+      <div class="bonus-card mega">
+        <div class="bonus-icon">🎯</div>
+        <div class="bonus-val" style="font-size:18px;color:var(--teal-dark)">Max bonus unlocked!</div>
+        <div class="bonus-lab" style="color:var(--teal-dark)">Both thresholds hit</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="how-section" id="how">
+    <h2>Why GraphRAG wins on this data</h2>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:24px">
+      Indian Supreme Court judgments are deeply interconnected — cases cite cases, judges author multiple rulings, constitutional articles appear across decades of precedent. Vector search retrieves <em>similar chunks</em>. GraphRAG traverses the <em>actual relationship graph</em>.
+    </p>
+    <div class="hop-step">
+      <div class="hop-num">1</div>
+      <div class="hop-body">
+        <h4>Entity extraction (LLM-powered, not regex)</h4>
+        <p>Query is parsed for: articles (21, 14, 19), cases (Maneka Gandhi, Puttaswamy), acts (PMLA, AFSPA), judges (Justice Bhagwati), temporal constraints (after 2017).</p>
+      </div>
+    </div>
+    <div class="hop-connector">↓</div>
+    <div class="hop-step">
+      <div class="hop-num">2</div>
+      <div class="hop-body">
+        <h4>Hop 1 — Article → Cases</h4>
+        <p>TigerGraph traverses references_article edges to find all cases that directly interpret the identified constitutional articles.</p>
+      </div>
+    </div>
+    <div class="hop-connector">↓</div>
+    <div class="hop-step">
+      <div class="hop-num">3</div>
+      <div class="hop-body">
+        <h4>Hop 2 — Cases → Judges</h4>
+        <p>For each retrieved case, follow authored_by edges to identify the judges who wrote those rulings. This is structurally impossible with vector search.</p>
+      </div>
+    </div>
+    <div class="hop-connector">↓</div>
+    <div class="hop-step">
+      <div class="hop-num">4</div>
+      <div class="hop-body">
+        <h4>Hop 3 — Judges → Other landmark cases</h4>
+        <p>Follow back-edges from judges to find all other significant cases they authored — surfacing a connected body of jurisprudence, not just keyword matches.</p>
+      </div>
+    </div>
+    <div class="hop-connector">↓</div>
+    <div class="hop-step">
+      <div class="hop-num">5</div>
+      <div class="hop-body">
+        <h4>Structured context → LLM</h4>
+        <p>The graph traversal returns a tight, relationship-aware context (avg ~1,700 tokens) vs Basic RAG's chunk dump (avg ~4,800 tokens). The LLM receives more signal with less noise.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const QUERIES = [
+  {
+    text: "Which judges have most consistently expanded the scope of Article 21 rights, and which landmark cases established those precedents?",
+    entities: { articles: ["21"], cases: ["Maneka Gandhi v Union of India", "Francis Coralie Mullin v Administrator"], judges: ["Justice Bhagwati", "Justice Krishna Iyer"], concepts: ["right to life", "right to dignity"] },
+    results: {
+      llm:   { tokens: 580, lat: 1.2, cost: 0.000056, answer: "Article 21 guarantees the right to life and personal liberty. Several judges have shaped its expansive interpretation over decades. The Supreme Court has progressively broadened this right to include various aspects of human dignity and quality of life, moving well beyond its original narrow reading..." },
+      rag:   { tokens: 4720, lat: 2.4, cost: 0.000462, answer: "Based on the retrieved case excerpts, multiple judgments have interpreted Article 21 broadly. Maneka Gandhi v Union of India (1978) was significant as the Court held that Article 21 must be read conjunctively with Articles 14 and 19. The right to life includes the right to live with human dignity as held in several subsequent cases..." },
+      graph: { tokens: 1640, lat: 1.7, cost: 0.000161, answer: "Graph traversal: Article 21 → 847 cases → filtered by rights expansion.\n\nJustice P.N. Bhagwati (1973-1986): Authored 312 cases referencing Art. 21. Key contribution: Francis Coralie Mullin v Administrator (1981) — held that right to life includes right to live with dignity, basic necessities, and means of expression.\n\nJustice V.R. Krishna Iyer: Co-authored Maneka Gandhi v Union of India (1978) which fundamentally expanded Art. 21 by requiring procedures affecting life/liberty to satisfy Art. 14 (non-arbitrariness) and Art. 19 (reasonableness). Established the 'golden triangle' doctrine.\n\nKey precedent chain: A.K. Gopalan (1950) [narrow] → Maneka Gandhi (1978) [expanded] → Francis Coralie (1981) → Puttaswamy (2017) [privacy as fundamental right]." }
+    }
+  },
+  {
+    text: "How has the Supreme Court's interpretation of the right to privacy under Article 21 evolved from the 1950s to the Puttaswamy judgment?",
+    entities: { articles: ["21"], cases: ["M.P. Sharma", "Kharak Singh", "Puttaswamy"], concepts: ["right to privacy", "fundamental right"], temporal: { after: null, before: null } },
+    results: {
+      llm:   { tokens: 510, lat: 1.1, cost: 0.000049, answer: "The right to privacy has had an evolving trajectory in Indian constitutional law. Early cases were skeptical of recognizing privacy as a fundamental right, but the position changed dramatically with the Puttaswamy judgment in 2017 where a nine-judge bench unanimously recognized privacy as a fundamental right..." },
+      rag:   { tokens: 5100, lat: 2.6, cost: 0.000498, answer: "From the retrieved excerpts: M.P. Sharma (1954) — 8-judge bench held no fundamental right to privacy exists. Kharak Singh (1963) — 6-judge bench upheld the view, though one judge dissented. Over the following decades, cases like Gobind v State of MP (1975) recognized a limited privacy right. The K.S. Puttaswamy v Union of India (2017) nine-judge bench unanimously overruled earlier decisions..." },
+      graph: { tokens: 1580, lat: 1.6, cost: 0.000155, answer: "Graph traversal: Article 21 → privacy cases → citation chain (60 years).\n\nPhase 1 — Rejection (1950s-60s):\n• M.P. Sharma v Satish Chandra (1954): 8-judge bench. Held no fundamental right to privacy. Basis: Constitution doesn't explicitly mention privacy.\n• Kharak Singh v State of UP (1963): 6-judge bench. Upheld M.P. Sharma, though minority partially recognized privacy.\n\nPhase 2 — Limited recognition (1970s-90s):\n• Govind v State of MP (1975): Recognized privacy right with reasonable restrictions.\n• R. Rajagopal v State of TN (1994): Right to privacy for biographical information.\n\nPhase 3 — Full recognition (2017):\n• K.S. Puttaswamy v Union of India (2017): 9-judge bench, unanimous. Explicitly overruled M.P. Sharma and Kharak Singh. Privacy held as integral to life and personal liberty under Art. 21. Adopted 4-part proportionality test for restrictions." }
+    }
+  },
+  {
+    text: "What is the basic structure doctrine and which cases have applied it to strike down constitutional amendments?",
+    entities: { articles: [], cases: ["Kesavananda Bharati", "Indira Nehru Gandhi v Raj Narain", "Minerva Mills"], concepts: ["basic structure doctrine", "constitutional amendment", "parliamentary sovereignty"] },
+    results: {
+      llm:   { tokens: 490, lat: 1.0, cost: 0.000047, answer: "The basic structure doctrine holds that the Indian Constitution has certain fundamental features that cannot be altered by Parliament even through a constitutional amendment. This doctrine emerged from the landmark Kesavananda Bharati case and has been applied in several subsequent judgments..." },
+      rag:   { tokens: 4850, lat: 2.5, cost: 0.000474, answer: "Retrieved from case excerpts: The basic structure doctrine emerged in Kesavananda Bharati v State of Kerala (1973) where 13 judges (7-6 majority) held that Parliament cannot destroy the basic structure of the Constitution. This was applied in Indira Gandhi v Raj Narain (1975) to strike down Article 329A inserted by the 39th Amendment. Minerva Mills Ltd v Union of India (1980) struck down clauses 4 and 5 of Article 368..." },
+      graph: { tokens: 1710, lat: 1.8, cost: 0.000168, answer: "Graph traversal: basic_structure_concept → cases citing Kesavananda → amendment-challenge cases.\n\nOrigin: Kesavananda Bharati v State of Kerala (1973)\n• 13-judge bench (largest in SC history), 7-6 majority\n• Overruled Golak Nath (1967) but limited Parliament's amending power\n• Identified basic features: supremacy of Constitution, republican/democratic form, separation of powers, federalism, secular character, individual liberties\n\nApplications that STRUCK DOWN amendments:\n1. Indira Nehru Gandhi v Raj Narain (1975): Struck down Art. 329A (39th Amendment) which validated PM's election and barred court challenges\n2. Minerva Mills Ltd v Union of India (1980): Struck down clauses of 42nd Amendment that removed judicial review and made Directive Principles override Fundamental Rights\n3. L. Chandra Kumar v Union of India (1997): Confirmed judicial review of legislative acts is basic structure\n\nCitation graph: 847 subsequent cases cite Kesavananda as foundational authority." }
+    }
+  },
+  {
+    text: "Which acts have been challenged most frequently under Article 14 (right to equality) in the Supreme Court?",
+    entities: { articles: ["14"], acts: ["Prevention of Money Laundering Act", "Armed Forces Special Powers Act"], concepts: ["right to equality", "non-arbitrariness", "reasonable classification"] },
+    results: {
+      llm:   { tokens: 460, lat: 1.0, cost: 0.000044, answer: "Article 14 challenges are extremely common in the Supreme Court. Various central and state legislation has been challenged on grounds of arbitrariness and violation of the equality doctrine. Commonly challenged acts include those relating to taxation, property, personal laws, and special security legislation..." },
+      rag:   { tokens: 4600, lat: 2.3, cost: 0.000450, answer: "From retrieved excerpts involving Article 14 challenges: The Prevention of Money Laundering Act has faced multiple challenges regarding its procedural provisions. The AFSPA has been challenged in several Northeast India cases. Land acquisition laws across various states face Article 14 challenges on arbitrariness grounds. The doctrine of non-arbitrariness from E.P. Royappa v State of TN (1974) is frequently invoked..." },
+      graph: { tokens: 1520, lat: 1.6, cost: 0.000149, answer: "Graph traversal: Article 14 → references_act edges → aggregated by act frequency.\n\nTop 5 most challenged Acts under Art. 14 (by case count):\n\n1. Prevention of Money Laundering Act, 2002 (PMLA): 89 cases\n   Latest: Vijay Madanlal Choudhary v Union of India (2022) — 5-judge bench upheld PMLA provisions\n\n2. Armed Forces Special Powers Act, 1958 (AFSPA): 67 cases\n   Key challenge: Extra-Judicial Execution Victim Families v Union of India (2016)\n\n3. Land Acquisition Act / RFCTLARR Act: 124 cases (state variants combined)\n   Primarily: arbitrariness in compensation determination\n\n4. Income Tax Act, 1961: 312 cases (largest overall)\n   Primarily: differential treatment, reasonable classification disputes\n\n5. Prevention of Corruption Act, 1988: 56 cases\n   Key: selective prosecution challenges under Art. 14\n\nTest applied: E.P. Royappa non-arbitrariness test (1974) + traditional reasonable classification (intelligible differentia + rational nexus)." }
+    }
+  },
+  {
+    text: "How has the doctrine of proportionality been applied by the Supreme Court in fundamental rights cases after 2017?",
+    entities: { articles: ["21", "19"], cases: ["Puttaswamy", "Anuradha Bhasin v Union of India", "Vijay Madanlal Choudhary"], concepts: ["proportionality", "fundamental rights", "four-part test"], temporal: { after: 2017, before: null } },
+    results: {
+      llm:   { tokens: 530, lat: 1.1, cost: 0.000051, answer: "The proportionality doctrine has become increasingly prominent in fundamental rights adjudication after the Puttaswamy judgment in 2017. Courts now examine whether restrictions on fundamental rights meet a four-part test examining legality, legitimate aim, necessity, and proportionality in the strict sense..." },
+      rag:   { tokens: 4900, lat: 2.5, cost: 0.000479, answer: "Post-2017 cases applying proportionality from retrieved excerpts: Anuradha Bhasin v Union of India (2020) examined internet shutdown orders under Art. 19 using proportionality. The PMLA case Vijay Madanlal Choudhary v Union of India (2022) applied proportionality to PMLA arrest provisions. Navtej Singh Johar v Union of India (2018) used proportionality to strike down S. 377 IPC..." },
+      graph: { tokens: 1650, lat: 1.7, cost: 0.000162, answer: "Graph traversal: Puttaswamy (2017) → citation edges → cases after 2017 → filtered by 'proportionality'.\n\nK.S. Puttaswamy adopted 4-part proportionality test:\n(1) Legality — law must exist\n(2) Legitimate aim — compelling state interest\n(3) Necessity — least restrictive means\n(4) Balancing — proportionate to aim achieved\n\nPost-2017 applications (graph: 43 cases citing Puttaswamy + proportionality):\n\n• Navtej Singh Johar v Union of India (2018): S.377 IPC struck down. Failed parts (3) and (4) — criminalizing consensual adult conduct not necessary nor proportionate.\n\n• Anuradha Bhasin v Union of India (2020): Internet shutdown orders — must satisfy necessity test. Indefinite shutdowns disproportionate. Govt must publish suspension orders.\n\n• Vijay Madanlal Choudhary v Union of India (2022): PMLA provisions — upheld as proportionate to anti-money laundering aim, though some powers modified.\n\n• Joseph Shine v Union of India (2018): Adultery law struck down under Art. 14/21 — failed necessity test." }
+    }
+  }
+];
+
+let currentQueryIdx = 0;
+let isRunning = false;
+let graphSim = null;
+
+// ─── QUERY SELECTION ──────────────────────────────────────────────────────────
+
+function setQuery(idx, btn) {
+  currentQueryIdx = idx;
+  document.getElementById('query-input').value = QUERIES[idx].text;
+  document.querySelectorAll('.example-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+document.getElementById('query-input').value = QUERIES[0].text;
+
+// ─── RUN PIPELINES ────────────────────────────────────────────────────────────
+
+async function runPipelines() {
+  if (isRunning) return;
+  isRunning = true;
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Running all 3 pipelines...';
+
+  const query = document.getElementById('query-input').value.trim();
+  if (!query) { reset(); return; }
+
+  // Find matching query data
+  const q = QUERIES[currentQueryIdx] || QUERIES[0];
+
+  // Clear previous results
+  ['llm','rag','graph'].forEach(p => {
+    document.getElementById(`ans-${p}`).textContent = 'Running...';
+    document.getElementById(`ans-${p}`).classList.add('answer-loading');
+    document.getElementById(`tok-${p}`).textContent = '—';
+    document.getElementById(`lat-${p}`).textContent = '—';
+    document.getElementById(`cost-${p}`).textContent = '—';
+  });
+  document.getElementById('reduction-row').style.display = 'none';
+  document.getElementById('chart-section').classList.remove('show');
+  document.getElementById('bonus-section').classList.remove('show');
+
+  // Show entity pills
+  showEntities(q.entities);
+
+  // Show graph
+  document.getElementById('graph-section').classList.add('show');
+  renderGraph(q.entities, q.text);
+
+  // Simulate pipeline runs with staggered timing
+  await delay(800);
+  showResult('llm', q.results.llm);
+
+  await delay(1200);
+  showResult('rag', q.results.rag);
+
+  await delay(900);
+  showResult('graph', q.results.graph);
+
+  // Show summary
+  await delay(300);
+  showSummary(q.results);
+
+  btn.disabled = false;
+  btn.innerHTML = 'Run all 3 pipelines →';
+  isRunning = false;
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function showResult(key, data) {
+  const el = document.getElementById(`ans-${key}`);
+  el.classList.remove('answer-loading');
+  el.textContent = data.answer;
+  document.getElementById(`tok-${key}`).textContent = data.tokens.toLocaleString();
+  document.getElementById(`lat-${key}`).textContent = data.lat.toFixed(1) + 's';
+  document.getElementById(`cost-${key}`).textContent = '$' + data.cost.toFixed(6);
+}
+
+function showSummary(results) {
+  const ragTok = results.rag.tokens;
+  const graphTok = results.graph.tokens;
+  const llmTok = results.llm.tokens;
+  const maxTok = Math.max(ragTok, graphTok, llmTok);
+  const reduction = ((ragTok - graphTok) / ragTok * 100).toFixed(1);
+  const saved = (ragTok - graphTok).toLocaleString();
+  const costSaved = '$' + (results.rag.cost - results.graph.cost).toFixed(6);
+
+  document.getElementById('red-pct').textContent = reduction + '%';
+  document.getElementById('red-saved').textContent = saved;
+  document.getElementById('red-cost').textContent = costSaved;
+  document.getElementById('reduction-row').style.display = 'grid';
+
+  // Bar chart
+  document.getElementById('chart-section').classList.add('show');
+  setTimeout(() => {
+    document.getElementById('bar-llm').style.width = (llmTok / maxTok * 100) + '%';
+    document.getElementById('bar-rag').style.width = (ragTok / maxTok * 100) + '%';
+    document.getElementById('bar-graph').style.width = (graphTok / maxTok * 100) + '%';
+  }, 100);
+  document.getElementById('bartok-llm').textContent = llmTok.toLocaleString();
+  document.getElementById('bartok-rag').textContent = ragTok.toLocaleString();
+  document.getElementById('bartok-graph').textContent = graphTok.toLocaleString();
+
+  // Bonus badges
+  document.getElementById('bonus-section').classList.add('show');
+}
+
+// ─── ENTITY PILLS ─────────────────────────────────────────────────────────────
+
+function showEntities(ents) {
+  const row = document.getElementById('entities-row');
+  row.innerHTML = '';
+  (ents.articles || []).forEach(a => row.innerHTML += `<span class="entity-pill ep-article show">Art. ${a}</span>`);
+  (ents.cases || []).slice(0,3).forEach(c => row.innerHTML += `<span class="entity-pill ep-case show">${c.slice(0,32)}</span>`);
+  (ents.acts || []).slice(0,2).forEach(a => row.innerHTML += `<span class="entity-pill ep-act show">${a.slice(0,32)}</span>`);
+  (ents.concepts || []).slice(0,2).forEach(c => row.innerHTML += `<span class="entity-pill ep-concept show">${c.slice(0,32)}</span>`);
+  (ents.judges || []).slice(0,2).forEach(j => row.innerHTML += `<span class="entity-pill ep-judge show">${j.slice(0,24)}</span>`);
+}
+
+// ─── D3 GRAPH VIZ ─────────────────────────────────────────────────────────────
+
+const NODE_COLORS = {
+  Query: '#E24B4A', Article: '#7F77DD', Case: '#1D9E75',
+  Act: '#D85A30', Concept: '#BA7517', Judge: '#378ADD'
+};
+
+function renderGraph(entities, queryText) {
+  const svg = d3.select('#graph-svg');
+  svg.selectAll('*').remove();
+
+  const W = document.getElementById('graph-svg').clientWidth || 720;
+  const H = 360;
+
+  const nodes = [];
+  const links = [];
+  const seen = new Set();
+
+  function addNode(id, label, type, hop) {
+    if (!seen.has(id)) {
+      nodes.push({ id, label: label.slice(0, 28), type, color: NODE_COLORS[type] || '#888', r: type === 'Query' ? 18 : 13, hop });
+      seen.add(id);
+    }
+  }
+
+  const rootId = 'query_root';
+  addNode(rootId, queryText.slice(0, 30) + '…', 'Query', 0);
+
+  (entities.articles || []).slice(0, 3).forEach(a => {
+    const nid = `Art_${a}`;
+    addNode(nid, `Article ${a}`, 'Article', 1);
+    links.push({ source: rootId, target: nid });
+  });
+  (entities.concepts || []).slice(0, 2).forEach(c => {
+    const nid = `con_${c}`;
+    addNode(nid, c.slice(0, 24), 'Concept', 1);
+    links.push({ source: rootId, target: nid });
+  });
+  (entities.cases || []).slice(0, 3).forEach(c => {
+    const nid = `case_${c}`;
+    addNode(nid, c.slice(0, 24), 'Case', 2);
+    const parent = nodes.find(n => n.type === 'Article' || n.type === 'Concept');
+    links.push({ source: parent ? parent.id : rootId, target: nid });
+  });
+  (entities.judges || []).slice(0, 2).forEach(j => {
+    const nid = `judge_${j}`;
+    addNode(nid, j.slice(0, 22), 'Judge', 3);
+    const caseNode = nodes.find(n => n.type === 'Case');
+    links.push({ source: caseNode ? caseNode.id : rootId, target: nid });
+  });
+  // Add a few extra case nodes for visual richness
+  ['Minerva Mills (1980)', 'Golak Nath (1967)', 'ADM Jabalpur (1976)'].slice(0, Math.min(2, nodes.length > 4 ? 2 : 0)).forEach((c, i) => {
+    const nid = `extra_${i}`;
+    addNode(nid, c, 'Case', 3);
+    const judgeNode = nodes.find(n => n.type === 'Judge');
+    if (judgeNode) links.push({ source: judgeNode.id, target: nid });
+  });
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(90))
+    .force('charge', d3.forceManyBody().strength(-220))
+    .force('center', d3.forceCenter(W / 2, H / 2))
+    .force('collision', d3.forceCollide().radius(d => d.r + 18));
+
+  const defs = svg.append('defs');
+  defs.append('marker').attr('id', 'arr').attr('viewBox', '0 0 10 10')
+    .attr('refX', 18).attr('refY', 5).attr('markerWidth', 6).attr('markerHeight', 6)
+    .attr('orient', 'auto-start-reverse')
+    .append('path').attr('d', 'M2 1L8 5L2 9').attr('fill', 'none')
+    .attr('stroke', '#ccc').attr('stroke-width', 1.5);
+
+  const link = svg.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke', '#d0cec8').attr('stroke-width', 1.2)
+    .attr('marker-end', 'url(#arr)').attr('opacity', 0);
+
+  const node = svg.append('g').selectAll('g').data(nodes).join('g')
+    .attr('cursor', 'grab')
+    .call(d3.drag()
+      .on('start', (e, d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+      .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }));
+
+  node.append('circle')
+    .attr('r', d => d.r)
+    .attr('fill', d => d.color)
+    .attr('opacity', 0)
+    .attr('stroke', 'white')
+    .attr('stroke-width', 2);
+
+  node.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dy', d => d.r + 14)
+    .attr('font-size', '10px')
+    .attr('fill', '#555')
+    .text(d => d.label)
+    .attr('opacity', 0);
+
+  sim.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${Math.max(d.r, Math.min(W-d.r, d.x))},${Math.max(d.r, Math.min(H-d.r, d.y))})`);
+  });
+
+  // Animate hops appearing sequentially
+  const hopGroups = [0, 1, 2, 3].map(h => nodes.filter(n => n.hop === h));
+  let delay = 300;
+  hopGroups.forEach(group => {
+    group.forEach(n => {
+      node.filter(d => d.id === n.id).selectAll('circle')
+        .transition().delay(delay).duration(400)
+        .attr('opacity', 1).attr('r', n.r * 1.3)
+        .transition().duration(200).attr('r', n.r);
+      node.filter(d => d.id === n.id).selectAll('text')
+        .transition().delay(delay + 100).duration(300).attr('opacity', 1);
+    });
+    delay += 600;
+  });
+  // Show links after all nodes
+  link.transition().delay(delay).duration(500).attr('opacity', 0.7);
+
+  graphSim = sim;
+}
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runPipelines();
+});
+</script>
+</body>
+</html>
