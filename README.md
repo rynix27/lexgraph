@@ -368,7 +368,7 @@ For Round 2, LexGraph will:
 | Resource | Link |
 |---|---|
 | 📹 Demo video | [link] |
-| 📝 Blog post | [link] |
+| 📝 Blog post | https://dev.to/sujatha/lexgraph-4occ |
 | 🐯 TigerGraph GraphRAG repo | [github.com/tigergraph/graphrag](https://github.com/tigergraph/graphrag) |
 | 🏆 Hackathon page | [GraphRAG Inference Hackathon](https://unstop.com) |
 | 📊 Dataset | [OpenNyai ILDC](https://huggingface.co/datasets/opennyaiorg/ILDC_multi) |
